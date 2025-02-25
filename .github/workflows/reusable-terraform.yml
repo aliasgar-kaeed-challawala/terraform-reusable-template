@@ -1,0 +1,61 @@
+name: Reusable Terraform Workflow
+
+on:
+  workflow_call:
+    inputs:
+      tf_version:
+        required: true
+        type: string
+    secrets:
+      AWS_REGION:
+        required: true
+
+jobs:
+  terraform:
+    name: Terraform Deploy
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y awscli jq
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ inputs.tf_version }}
+
+      - name: Retrieve IAM Role Credentials
+        run: |
+          INSTANCE_ROLE_NAME=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+          echo "Instance Role: $INSTANCE_ROLE_NAME"
+          CREDENTIALS=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$INSTANCE_ROLE_NAME)
+          export AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | jq -r '.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | jq -r '.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(echo $CREDENTIALS | jq -r '.Token')
+          aws sts get-caller-identity
+        
+      - name: Terraform Init
+        run: terraform init
+        
+      - name: Terraform Validate
+        run: terraform validate
+        
+      - name: Cache Terraform Files
+        uses: actions/cache@v3
+        with:
+          path: |
+            .terraform/
+            terraform.tfstate
+          key: ${{ runner.os }}-terraform-${{ github.ref }}
+        
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        
+      - name: Apply Terraform Plan
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
