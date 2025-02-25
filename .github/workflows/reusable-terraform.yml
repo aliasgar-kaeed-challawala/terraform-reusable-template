@@ -22,11 +22,8 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y software-properties-common
-          sudo add-apt-repository universe
-          sudo apt update
-          sudo apt install -y python3-pip awscli jq
-
+          sudo apt install -y software-properties-common jq
+          
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -40,8 +37,10 @@ jobs:
           export AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | jq -r '.AccessKeyId')
           export AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | jq -r '.SecretAccessKey')
           export AWS_SESSION_TOKEN=$(echo $CREDENTIALS | jq -r '.Token')
-          aws sts get-caller-identity
-        
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+          echo "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN" >> $GITHUB_ENV
+
       - name: Terraform Init
         run: terraform init
         
